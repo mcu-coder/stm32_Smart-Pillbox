@@ -1,0 +1,106 @@
+#include "sys.h"
+//#include "usart3.h"
+SENSOR SensorData;//传感器结构体定义
+THRESHOLD Threshold;//阈值结构体定义
+SYSTEM System;//系统标志位结构体定义
+
+void mqttPublic(void);
+void Threshold_Init(THRESHOLD *Threshold);
+
+int main(void)
+{
+    delay_init();//延时函数初始化
+    TIM4_Init(4000, 7200 - 1); //定时器4初始化
+    TIM2_Init(499, 7199); //定时器2初始化 定时扫描按键 定时将消息发布标志置位
+    NVIC_Config(); //中断优先级配置
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+    Usart3_Init(9600);
+	  u3_printf("开机");
+    My_USART2(); //串口2初始化 （与ESP8266通信用）波特率：115200
+    RELAY_GPIO_Config();//继电器初始化
+    Adc_Init();//adc初始化，读取传感器值
+    wifi_GPIO_Config();//ESP8266复位引脚初始化
+    Ali_MsessageInit();//服务器连接相关的变量初始化
+    Beep_Init();//蜂鸣器初始化
+    SG90_Init();//舵机
+    LED_GPIO_Config();//LED灯初始化
+    oled_Init();//oled初始化
+    TIM1_Int_Init(10000 -1,7200-1);
+    KEY_Init();//按键初始化
+    Threshold_Init(&Threshold);//传感器阈值及执行器件开关变量初始化
+	   MyRTC_Init();
+    //
+    oled_ShowCHinese(16 * 1, 2 * 0, 0);
+    oled_ShowCHinese(16 * 2, 2 * 0, 1);
+    oled_ShowCHinese(16 * 3, 2 * 0, 2);
+    oled_ShowCHinese(16 * 4, 2 * 0, 3);
+    oled_ShowCHinese(16 * 5, 2 * 0, 4);
+    oled_ShowCHinese(16 * 6, 2 * 0, 5);
+    Init_HX711pin();
+    Get_Maopi();
+    delay_ms(1000);
+    delay_ms(1000);
+    Get_Maopi();
+   
+    oled_Clear();
+   
+
+    //    oled_ShowString(0,2,"Connecting...",16);
+    /*******************************************/
+    while (1) {
+   
+              mqtt_Content();//连接MQTT服务器并与之通信
+             KeyScan();
+			     Get_Weight();
+           SensorData.Sensor1 = Weight_Shiwu; //
+          SensorData.Sensor2 = Get_Adc_Average(4, 10) / 41; //水位
+           Mode_Decide();//模式判定 （按键1选择模式）
+        //        /*****定时发布MQTT消息至服务器*****/
+                       if(System.mqttflag)
+                       {
+                            mqttPublic();//向MQTT服务器发布消息
+                            System.mqttflag=0;
+                        }
+    }
+}
+
+//向MQTT服务器发布消息
+void mqttPublic(void)
+{
+    char Send[256];
+    sprintf(Send,
+            "{\"sensor1\":%d,\"sensor2\":%d,\"sensor3\":%d,\"sensor4\":%d,\"sensor5\":%d,\"sensor6\":%d,\"sensor7\":%d,\"sensor8\":%d,\"sensor9\":%d,\"sensor10\":%d,\"sensor11\":%d,\"sensor12\":%d,\"sensor13\":%d,\"sensor14\":%d,\"sensor15\":%d,\"sensor16\":%d,\"sensor17\":%d,\"sensor18\":%d,\"sensor19\":%d}",
+            SensorData.Sensor1,
+            SensorData.Sensor2,
+            Threshold.Sensor2MAX,
+	          WhatTime,
+	          Hour1,
+	          Min1,
+	          SteTime1,
+	          Hour2,
+	          Min2,
+	          SteTime2,
+	          Hour3,
+	          Min3,
+	          SteTime3,
+	           Hour4,
+	          Min4,
+	          SteTime4,
+            Hour5,
+	          Min5,
+	          SteTime5
+           );
+    //
+    mqtt_PublishQs0(P_TOPIC_NAME, Send, strlen(Send));
+}
+
+//传感器阈值及执行器件开关变量初始化
+void Threshold_Init(THRESHOLD *Threshold)
+{
+//    Threshold->Sensor1MAX = 300;//粮食
+    Threshold->Sensor2MAX = 50;//水位
+    //    Threshold->Sensor3MAX = 20;//温度
+    //    Threshold->Sensor4MAX = 60;//水位
+}
+
+
